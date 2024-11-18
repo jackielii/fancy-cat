@@ -1,11 +1,12 @@
 const Self = @This();
 const std = @import("std");
+const fastb64z = @import("fastb64z");
+const vaxis = @import("vaxis");
+const config = @import("config");
 const c = @cImport({
     @cInclude("mupdf/fitz.h");
     @cInclude("mupdf/pdf.h");
 });
-const vaxis = @import("vaxis");
-const config = @import("config");
 
 pub const PdfError = error{
     FailedToCreateContext,
@@ -164,7 +165,7 @@ pub fn renderPage(
     try img.convert(.rgb24);
     const buf = img.rawBytes();
 
-    const base64Encoder = std.base64.standard.Encoder;
+    const base64Encoder = fastb64z.standard.Encoder;
     const b64_buf = try self.allocator.alloc(u8, base64Encoder.calcSize(buf.len));
 
     const encoded = base64Encoder.encode(b64_buf, buf);
