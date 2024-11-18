@@ -186,10 +186,6 @@ pub fn drawCurrentPage(self: *Self, win: vaxis.Window) !void {
         );
         defer img.deinit();
 
-        if (self.current_page) |old_img| {
-            self.vx.freeImage(self.tty.anyWriter(), old_img.id);
-        }
-
         const new_image = try self.vx.transmitImage(
             self.allocator,
             self.tty.anyWriter(),
