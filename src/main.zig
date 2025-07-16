@@ -39,7 +39,7 @@ pub fn main() !void {
         return;
     }
 
-    if (args.len < 2 or args.len > 3) {
+    if (args.len < 2 or args.len > 3 or (std.mem.eql(u8, args[1], "--help") or std.mem.eql(u8, args[1], "-h"))) {
         const stderr = std.io.getStdErr().writer();
         try stderr.writeAll("Usage: fancy-cat <path-to-pdf> <optional-page-number>\n");
         return;
