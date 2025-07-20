@@ -75,7 +75,7 @@ pub const Context = struct {
             .config = config,
             .current_mode = undefined,
             .reload_page = true,
-            .cache = Cache.init(allocator, config),
+            .cache = Cache.init(allocator, config, vx, &tty),
             .should_check_cache = config.cache.enabled,
         };
     }
@@ -163,7 +163,6 @@ pub const Context = struct {
     }
 
     pub fn resetCurrentPage(self: *Self) void {
-        self.document_handler.resetZoomAndScroll();
         self.should_check_cache = self.config.cache.enabled;
         self.reload_page = true;
     }
@@ -189,18 +188,12 @@ pub const Context = struct {
             .mouse => |mouse| self.mouse = mouse,
             .winsize => |ws| {
                 try self.vx.resize(self.allocator, self.tty.anyWriter(), ws);
-                self.document_handler.resetDefaultZoom();
-                self.document_handler.resetZoomAndScroll();
                 self.cache.clear();
                 self.reload_page = true;
             },
             .file_changed => {
                 try self.document_handler.reloadDocument();
-                _ = self.cache.remove(.{
-                    .colorize = self.config.general.colorize,
-                    .page = self.document_handler.current_page_number,
-                    .width_mode = self.document_handler.getWidthMode(),
-                });
+                self.cache.clear();
                 self.reload_page = true;
             },
         }
@@ -212,15 +205,19 @@ pub const Context = struct {
         window_width: u32,
         window_height: u32,
     ) !vaxis.Image {
+        const cache_key = Cache.Key{
+            .colorize = self.config.general.colorize,
+            .page = page_number,
+            .width_mode = self.document_handler.getWidthMode(),
+
+            // Scale zoom and position as integers with three digits of precision for use in key
+            .zoom = @as(u32, @intFromFloat(self.document_handler.getActiveZoom() * 1000.0)),
+            .x_offset = @as(i32, @intFromFloat(self.document_handler.getXOffset() * 1000.0)),
+            .y_offset = @as(i32, @intFromFloat(self.document_handler.getYOffset() * 1000.0)),
+        };
+
         if (self.should_check_cache) {
-            if (self.cache.get(.{
-                .colorize = self.config.general.colorize,
-                .page = page_number,
-                .width_mode = self.document_handler.getWidthMode(),
-            })) |cached| {
-                // Once we get the cached image we don't need to check the cache anymore because
-                // The only actions a user can take is zoom or scrolling, but we don't cache those
-                // Or go to the next page, at which point we set check_cache to true again
+            if (self.cache.get(cache_key)) |cached| {
                 self.should_check_cache = false;
                 return cached.image;
             }
@@ -241,14 +238,10 @@ pub const Context = struct {
             .rgb,
         );
 
-        if (!self.should_check_cache) return image;
-
-        _ = try self.cache.put(.{
-            .colorize = self.config.general.colorize,
-            .page = page_number,
-            .width_mode = self.document_handler.getWidthMode(),
-        }, .{ .image = image });
-        self.should_check_cache = false;
+        if (self.should_check_cache) {
+            _ = try self.cache.put(cache_key, .{ .image = image });
+            self.should_check_cache = false;
+        }
 
         return image;
     }
