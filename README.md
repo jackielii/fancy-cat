@@ -21,10 +21,7 @@ fancy-cat <path-to-pdf> <optional-page-number>
 
 fancy-cat uses a modal interface similar to Neovim. There are two modes: view mode and command mode. To enter command mode you type `:` by default (this can be changed in the config file)
 
-#### Available Commands
-
-- `:<page-number>` - jump to the specified page number
-- `:q` - quit the application
+Documentation on the available commands can be found [here](./docs/commands.md)
 
 ### Configuration
 
