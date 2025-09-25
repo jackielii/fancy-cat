@@ -37,6 +37,7 @@ pub const Context = struct {
     reload_page: bool,
     cache: Cache,
     should_check_cache: bool,
+    buf: []u8,
 
     pub fn init(allocator: std.mem.Allocator, args: [][:0]u8) !Self {
         const path = args[1];
@@ -59,7 +60,8 @@ pub const Context = struct {
         }
 
         const vx = try vaxis.init(allocator, .{});
-        const tty = try vaxis.Tty.init();
+        const buf = try allocator.alloc(u8, 4096);
+        const tty = try vaxis.Tty.init(buf);
 
         return .{
             .allocator = allocator,
@@ -77,6 +79,7 @@ pub const Context = struct {
             .reload_page = true,
             .cache = Cache.init(allocator, config, vx, &tty),
             .should_check_cache = config.cache.enabled,
+            .buf = buf,
         };
     }
 
@@ -98,6 +101,7 @@ pub const Context = struct {
         self.document_handler.deinit();
         self.vx.deinit(self.allocator, self.tty.anyWriter());
         self.tty.deinit();
+        self.allocator.free(self.buf);
     }
 
     fn callback(context: ?*anyopaque, event: fzwatch.Event) void {
@@ -144,8 +148,8 @@ pub const Context = struct {
 
             try self.draw();
 
-            var buffered = self.tty.bufferedWriter();
-            try self.vx.render(buffered.writer().any());
+            var buffered = self.tty.anyWriter();
+            try self.vx.render(buffered);
             try buffered.flush();
         }
     }
