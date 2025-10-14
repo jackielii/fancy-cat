@@ -175,10 +175,8 @@ status_bar: StatusBar = .{},
 cache: Cache = .{},
 
 pub fn init(allocator: std.mem.Allocator) !Self {
-    var arena = std.heap.ArenaAllocator.init(allocator);
-    const arena_allocator = arena.allocator();
-
-    var self = Self{ .arena = arena };
+    var self = Self{ .arena = std.heap.ArenaAllocator.init(allocator) };
+    const arena_allocator = self.arena.allocator();
 
     const home = std.process.getEnvVarOwned(allocator, "HOME") catch return self;
     defer allocator.free(home);
@@ -193,7 +191,8 @@ pub fn init(allocator: std.mem.Allocator) !Self {
 
     const file = std.fs.openFileAbsolute(config_path, .{ .mode = .read_only }) catch |err| {
         if (err == error.FileNotFound) {
-            _ = std.fs.createFileAbsolute(config_path, .{}) catch return self;
+            const newf = std.fs.createFileAbsolute(config_path, .{}) catch return self;
+            newf.close();
         }
         return self;
     };

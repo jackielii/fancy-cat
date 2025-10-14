@@ -101,6 +101,7 @@ pub const Context = struct {
 
         if (self.page_info_text.len > 0) self.allocator.free(self.page_info_text);
 
+        self.config.deinit();
         self.allocator.destroy(self.config);
         self.arena.deinit();
         self.unicode.deinit(self.allocator);
@@ -296,6 +297,7 @@ pub const Context = struct {
 
     pub fn drawStatusBar(self: *Self, win: vaxis.Window) !void {
         const arena = self.arena.allocator();
+        defer _ = self.arena.reset(.retain_capacity);
 
         const status_bar = win.child(.{
             .x_off = 0,
@@ -352,8 +354,6 @@ pub const Context = struct {
                 try self.drawStatusText(status_bar, items[items.len - 1 - j], &right_col, false, arena);
             }
         }
-
-        _ = self.arena.reset(.retain_capacity);
     }
 
     fn expandPlaceholders(list: *std.array_list.Managed(Config.StatusBar.StyledItem), styled_text: Config.StatusBar.StyledItem) !void {
@@ -396,17 +396,17 @@ pub const Context = struct {
             if (std.mem.startsWith(u8, full_path, cwd)) {
                 var path = full_path[cwd.len..];
                 if (path.len > 0 and path[0] == '/') path = path[1..];
-                text = path;
+                text = try std.fmt.allocPrint(allocator, "./{s}", .{path});
             } else if (std.posix.getenv("HOME")) |home| {
                 if (std.mem.startsWith(u8, full_path, home)) {
                     var path = full_path[home.len..];
                     if (path.len > 0 and path[0] == '/') path = path[1..];
                     text = try std.fmt.allocPrint(allocator, "~/{s}", .{path});
                 } else {
-                    text = full_path;
+                    text = try std.fmt.allocPrint(allocator, "{s}", .{full_path});
                 }
             } else {
-                text = full_path;
+                text = try std.fmt.allocPrint(allocator, "{s}", .{full_path});
             }
         } else if (std.mem.eql(u8, text, Config.StatusBar.PAGE)) {
             text = try std.fmt.allocPrint(allocator, "{}", .{self.document_handler.getCurrentPageNumber() + 1});
