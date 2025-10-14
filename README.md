@@ -27,7 +27,7 @@ Documentation on the available commands can be found [here](./docs/commands.md)
 
 fancy-cat can be configured through a JSON config file located at `~/.config/fancy-cat/config.json`. The file is automatically created on the first run with default settings.
 
-The default `config.json` can be found [here](./src/config/config.json) and documentation on the config options can be found [here](./docs/config.md)
+The default `config.json` and documentation can be found [here](./docs/config.md)
 
 ## Installation
 
