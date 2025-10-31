@@ -1,16 +1,30 @@
 # Configuration
 
-On startup, fancy-cat looks for a configuration file at:
+On startup, fancy-cat looks for a configuration file in the following locations:
+
+**Primary**
 
 ```
-~/.config/fancy-cat/config.json
+$XDG_CONFIG_HOME/fancy-cat/config.json
 ```
 
-If no configuration file is found, fancy-cat creates an empty one. Since fancy-cat comes with sensible defaults, you only need to add the options you want to change.
+**Fallback**
+
+```
+$HOME/.config/fancy-cat/config.json
+```
+
+**Legacy**
+
+```
+$HOME/.fancy-cat
+```
+
+If no configuration file is found in any of these locations, fancy-cat creates an empty configuration file in the primary or fallback location.
 
 ## Defaults
 
-Below is an example configuration file that replicates the default settings. You can use it as a starting point for your customizations:
+Because fancy-cat provides sensible defaults, you only need to specify the options you wish to override. Below is an example configuration file that replicates the default settings. You can use this example as a starting point for your customizations:
 
 ```json
 {
@@ -29,7 +43,9 @@ Below is an example configuration file that replicates the default settings. You
     "full_screen": { "key": "f"},
     "enter_command_mode": { "key": ":" },
     "exit_command_mode": { "key": "escape" },
-    "execute_command": { "key": "enter" }
+    "execute_command": { "key": "enter" },
+    "history_back": { "key": "up" },
+    "history_forward": { "key": "down" }
   },
   "FileMonitor": {
     "enabled": true,
@@ -46,7 +62,8 @@ Below is an example configuration file that replicates the default settings. You
     "scroll_step": 100.0,
     "retry_delay": 0.2,
     "timeout": 5.0,
-    "dpi": 96.0
+    "dpi": 96.0,
+    "history": 1000
   },
   "StatusBar": {
     "enabled": true,
@@ -77,6 +94,7 @@ The rest of this reference provides detailed explanations for each configuration
 - [File Monitor](#file-monitor)
 - [General](#general)
   - [Color](#color)
+  - [History](#history)
 - [Status Bar](#status-bar)
   - [Style](#style)
     - [Underline](#underline)
@@ -110,6 +128,8 @@ The `KeyMap` section defines keybindings for various actions.
 | `enter_command_mode` | Enter command mode |
 | `exit_command_mode` | Exit command mode |
 | `execute_command` | Execute the entered command |
+| `history_back` | Go back one command in history |
+| `history_forward` | Go forward one command in history |
 
 ### Keybindings
 
@@ -191,6 +211,7 @@ The `General` section includes various display and timing settings.
 | `dpi` | Float | Resolution used for 100% zoom calculation |
 | `retry_delay` | Float (seconds) | Delay before retrying to load a document or render a page |
 | `timeout` | Float (seconds) | Maximum time to keep retrying before giving up on loading a document or rendering a page |
+| `history` | Integer | Maximum number of entries in command history |
 
 >[!TIP]
 >The color replacement feature works by replacing white and black with custom colors, which also affects the full color range depending on contrast. By default, `white` is set to black (`#000000`) and `black` is set to white (`#ffffff`). For a seamless look, try setting `white` to match your terminal’s background color and `black` to match the foreground (text) color.
@@ -203,6 +224,30 @@ The following color formats are supported:
 | :---  | :--- |
 | `"#RRGGBB"` or `"0xRRGGBB"` | `RR`, `GG`, and `BB` are two-digit hexadecimal values |
 | `{ "rgb": [R, G, B] }` | `R`, `G`, and `B` are integers between 0 and 255 |
+
+### History
+
+To ensure persistence across sessions, fancy-cat saves its command history in one of the following locations:
+
+**Primary**
+
+```
+$XDG_STATE_HOME/fancy-cat/history
+```
+
+**Fallback**
+
+```
+$HOME/.local/state/fancy-cat/history
+```
+
+**Legacy**
+
+```
+$HOME/.fancy-cat_history
+```
+>[!NOTE]
+>The legacy location is only used if the [configuration file](#configuration) itself is located at `$HOME/.fancy-cat`.
 
 ---
 

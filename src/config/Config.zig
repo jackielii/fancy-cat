@@ -18,6 +18,8 @@ pub const KeyMap = struct {
     enter_command_mode: vaxis.Key = .{ .codepoint = ':' },
     exit_command_mode: vaxis.Key = .{ .codepoint = vaxis.Key.escape },
     execute_command: vaxis.Key = .{ .codepoint = vaxis.Key.enter },
+    history_back: vaxis.Key = .{ .codepoint = vaxis.Key.up },
+    history_forward: vaxis.Key = .{ .codepoint = vaxis.Key.down },
 
     pub fn parse(val: std.json.Value, allocator: std.mem.Allocator) KeyMap {
         var keymap = KeyMap{};
@@ -87,6 +89,8 @@ pub const General = struct {
     timeout: f32 = 5.0,
     // resolution
     dpi: f32 = 96.0,
+    // whole number (possibly 0)
+    history: u32 = 1000,
 
     pub fn parse(val: std.json.Value, allocator: std.mem.Allocator) General {
         var general = General{};
@@ -116,6 +120,7 @@ pub const General = struct {
         general.retry_delay = parseType(f32, val.object, "retry_delay", allocator, general.retry_delay);
         general.timeout = parseType(f32, val.object, "timeout", allocator, general.timeout);
         general.dpi = parseType(f32, val.object, "dpi", allocator, general.dpi);
+        general.history = parseType(u32, val.object, "history", allocator, general.history);
 
         return general;
     }
@@ -211,34 +216,42 @@ general: General = .{},
 status_bar: StatusBar = .{},
 cache: Cache = .{},
 
-pub fn init(allocator: std.mem.Allocator) !Self {
+legacy_path: bool = false,
+
+pub fn init(allocator: std.mem.Allocator) Self {
     var self = Self{ .arena = std.heap.ArenaAllocator.init(allocator) };
     const arena_allocator = self.arena.allocator();
 
     const home = std.process.getEnvVarOwned(allocator, "HOME") catch return self;
     defer allocator.free(home);
 
-    var config_dir_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const config_dir = std.fmt.bufPrint(&config_dir_buf, "{s}/.config/fancy-cat", .{home}) catch return self;
+    var path: []u8 = "";
+    const xdg_config_home = std.process.getEnvVarOwned(allocator, "XDG_CONFIG_HOME") catch null;
+    if (xdg_config_home) |x| {
+        path = std.fmt.allocPrint(allocator, "{s}/fancy-cat/config.json", .{x}) catch return self;
+        allocator.free(x);
+    } else path = std.fmt.allocPrint(allocator, "{s}/.config/fancy-cat/config.json", .{home}) catch return self;
+    defer allocator.free(path);
 
-    std.fs.makeDirAbsolute(config_dir) catch {};
+    var content = std.fs.cwd().readFileAlloc(allocator, path, 1024 * 1024) catch null;
+    if (content == null) {
+        const legacy_path = std.fmt.allocPrint(allocator, "{s}/.fancy-cat", .{home}) catch return self;
+        defer allocator.free(legacy_path);
 
-    var config_path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const config_path = std.fmt.bufPrint(&config_path_buf, "{s}/config.json", .{config_dir}) catch return self;
-
-    const file = std.fs.openFileAbsolute(config_path, .{ .mode = .read_only }) catch |err| {
-        if (err == error.FileNotFound) {
-            const newf = std.fs.createFileAbsolute(config_path, .{}) catch return self;
-            newf.close();
+        content = std.fs.cwd().readFileAlloc(allocator, legacy_path, 1024 * 1024) catch null;
+        if (content == null) {
+            if (std.fs.path.dirname(path)) |dir| std.fs.cwd().makePath(dir) catch {};
+            const file = std.fs.createFileAbsolute(path, .{}) catch return self;
+            file.close();
+            return self;
         }
-        return self;
-    };
-    defer file.close();
+        self.legacy_path = true;
+    }
+    defer allocator.free(content.?);
 
-    const content = file.readToEndAlloc(arena_allocator, 1024 * 1024) catch return self;
-    if (content.len == 0) return self;
+    if (content.?.len == 0) return self;
 
-    var parsed = std.json.parseFromSlice(std.json.Value, arena_allocator, content, .{}) catch return self;
+    var parsed = std.json.parseFromSlice(std.json.Value, arena_allocator, content.?, .{}) catch return self;
     defer parsed.deinit();
 
     if (parsed.value.object.get("KeyMap")) |key_map| self.key_map = KeyMap.parse(key_map, arena_allocator);
