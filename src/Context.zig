@@ -21,7 +21,7 @@ pub const Event = union(enum) {
 
 pub const ModeType = enum { view, command };
 pub const Mode = union(ModeType) { view: ViewMode, command: CommandMode };
-pub const ReloadIndicatorState = enum { idle, reload };
+pub const ReloadIndicatorState = enum { idle, reload, watching };
 
 pub const Context = struct {
     const Self = @This();
@@ -45,6 +45,7 @@ pub const Context = struct {
     should_check_cache: bool,
     reload_indicator_timer: ReloadIndicatorTimer,
     current_reload_indicator_state: ReloadIndicatorState,
+    reload_indicator_active: bool,
     buf: []u8,
 
     pub fn init(allocator: std.mem.Allocator, args: [][:0]u8) !Self {
@@ -94,6 +95,7 @@ pub const Context = struct {
             .should_check_cache = config.cache.enabled,
             .reload_indicator_timer = reload_indicator_timer,
             .current_reload_indicator_state = .idle,
+            .reload_indicator_active = false,
             .buf = buf,
         };
     }
@@ -155,9 +157,16 @@ pub const Context = struct {
             if (self.watcher) |*w| {
                 w.setCallback(callback, &loop);
                 self.watcher_thread = try std.Thread.spawn(.{}, watcherWorker, .{ self, w });
-            }
-            if (self.config.status_bar.enabled and self.config.file_monitor.reload_indicator_duration > 0) {
-                try self.reload_indicator_timer.start(&loop);
+                self.current_reload_indicator_state = .watching;
+                if (self.config.status_bar.enabled and self.config.file_monitor.reload_indicator_duration > 0) {
+                    for (self.config.status_bar.items) |item| {
+                        if (item == .reload_aware) {
+                            try self.reload_indicator_timer.start(&loop);
+                            self.reload_indicator_active = true;
+                            break;
+                        }
+                    }
+                }
             }
         }
 
@@ -221,13 +230,13 @@ pub const Context = struct {
                 try self.document_handler.reloadDocument();
                 self.cache.clear();
                 self.reload_page = true;
-                if (self.config.status_bar.enabled and self.config.file_monitor.reload_indicator_duration > 0) {
+                if (self.reload_indicator_active) {
                     self.current_reload_indicator_state = .reload;
                     self.reload_indicator_timer.notifyChange();
                 }
             },
             .reload_done => {
-                self.current_reload_indicator_state = .idle;
+                self.current_reload_indicator_state = .watching;
             },
         }
     }
@@ -346,8 +355,9 @@ pub const Context = struct {
                 },
                 .reload_aware => |reload_aware| {
                     switch (self.current_reload_indicator_state) {
-                        .reload => try expandPlaceholders(&expanded_items, reload_aware.reload),
                         .idle => try expandPlaceholders(&expanded_items, reload_aware.idle),
+                        .reload => try expandPlaceholders(&expanded_items, reload_aware.reload),
+                        .watching => try expandPlaceholders(&expanded_items, reload_aware.watching),
                     }
                 },
             }
